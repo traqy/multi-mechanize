@@ -74,7 +74,14 @@ def run_test(project_name, cmd_opts, remote_starter=None):
         remote_starter.test_running = True
         remote_starter.output_dir = None
 
-    run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, post_run_script, xml_report, user_group_configs = configure(project_name, cmd_opts)
+    run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, pre_run_script, post_run_script, xml_report, user_group_configs = configure(project_name, cmd_opts)
+
+    # Run setup script
+    if pre_run_script is not None:
+        cmd = "{0}/{1}/test_scripts/{2}".format(cmd_opts.projects_dir, project_name, pre_run_script)
+        print 'Running global pre_run_script: %s\n' % cmd
+        subprocess.call( cmd )
+    
 
     run_localtime = time.localtime()
     output_dir = '%s/%s/results/results_%s' % (cmd_opts.projects_dir, project_name, time.strftime('%Y.%m.%d_%H.%M.%S/', run_localtime))
@@ -154,8 +161,9 @@ def run_test(project_name, cmd_opts, remote_starter=None):
                 run_time, rampup, results_ts_interval, user_group_configs)
 
     if post_run_script is not None:
-        print 'running post_run_script: %s\n' % post_run_script
-        subprocess.call(post_run_script)
+        cmd = "{0}/{1}/test_scripts/{2}".format(cmd_opts.projects_dir, project_name, post_run_script)
+        print 'Running global post_run_script: %s\n' % cmd
+        subprocess.call( cmd )
 
     print 'done.\n'
 
@@ -170,7 +178,7 @@ def run_test(project_name, cmd_opts, remote_starter=None):
 def rerun_results(project_name, cmd_opts, results_dir):
     output_dir = '%s/%s/results/%s/' % (cmd_opts.projects_dir, project_name, results_dir)
     saved_config = '%s/config.cfg' % output_dir
-    run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, post_run_script, xml_report, user_group_configs = configure(project_name, cmd_opts, config_file=saved_config)
+    run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, pre_run_script, post_run_script, xml_report, user_group_configs = configure(project_name, cmd_opts, config_file=saved_config)
     print '\n\nanalyzing results...\n'
     results.output_results(output_dir, 'results.csv', run_time, rampup, results_ts_interval, user_group_configs, xml_report)
     print 'created: %sresults.html\n' % output_dir
@@ -205,6 +213,11 @@ def configure(project_name, cmd_opts, config_file=None):
             except ConfigParser.NoOptionError:
                 results_database = None
             try:
+                pre_run_script = config.get(section, 'pre_run_script')
+                if pre_run_script == 'None': pre_run_script = None
+            except ConfigParser.NoOptionError:
+                pre_run_script = None
+            try:
                 post_run_script = config.get(section, 'post_run_script')
                 if post_run_script == 'None': post_run_script = None
             except ConfigParser.NoOptionError:
@@ -220,7 +233,7 @@ def configure(project_name, cmd_opts, config_file=None):
             ug_config = UserGroupConfig(threads, user_group_name, script)
             user_group_configs.append(ug_config)
 
-    return (run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, post_run_script, xml_report, user_group_configs)
+    return (run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, pre_run_script, post_run_script, xml_report, user_group_configs)
 
 
 
