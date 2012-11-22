@@ -67,8 +67,8 @@ if __name__ == '__main__':
     print trans.custom_timers
 """
 
-SETUP_ENV_SCRIPT_CONTENT = """
- 
+SETUP_ENV_SCRIPT_CONTENT = """#!/usr/bin/env python
+
 class Transaction(object):
  
     def run(self):
@@ -82,7 +82,8 @@ if __name__ == '__main__':
     trans.run()
 """
 
-TEARDOWN_ENV_SCRIPT_CONTENT = """
+TEARDOWN_ENV_SCRIPT_CONTENT = """#!/usr/bin/env python
+
 class Transaction(object):
  
     def run(self):
@@ -123,8 +124,10 @@ def create_project(
         f.write(script_content)
     with open(os.path.join(project_name, scripts_dir, script_setup_env_name), 'w') as f:
         f.write(script_setup_env_content)
+    os.chmod(os.path.join(project_name, scripts_dir, script_setup_env_name), 0755 )
     with open(os.path.join(project_name, scripts_dir, script_teardown_env_name), 'w') as f:
         f.write(script_teardown_env_content)
+    os.chmod(os.path.join(project_name, scripts_dir, script_teardown_env_name), 0755 )
 
 
 def main():
