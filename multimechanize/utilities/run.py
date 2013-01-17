@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import time
+import atexit
 
 try:
     # installed
@@ -96,6 +97,7 @@ def run_test(project_name, cmd_opts, remote_starter=None):
         user_groups.append(ug)
     for user_group in user_groups:
         user_group.start()
+        atexit.register(user_group.terminate)
 
     start_time = time.time()
 
