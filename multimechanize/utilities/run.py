@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import time
+import atexit
 
 try:
     # installed
@@ -55,19 +56,31 @@ def main():
         sys.stderr.write('Example: multimech-run my_project\n\n')
         sys.exit(1)
 
-    core.init(cmd_opts.projects_dir, project_name)
+    try:
+        core.init(cmd_opts.projects_dir, project_name)
+        # -- ORIGINAL-MAIN:
+        if cmd_opts.results_dir:  # don't run a test, just re-process results
+            rerun_results(project_name, cmd_opts, cmd_opts.results_dir)
+        elif cmd_opts.port:
+            import multimechanize.rpcserver
+            multimechanize.rpcserver.launch_rpc_server(cmd_opts.bind_addr, cmd_opts.port, project_name, run_test)
+        else:
+            run_test(project_name, cmd_opts)
+        return
+    except Exception, e:
+        parser.error(e)
 
-    # -- ORIGINAL-MAIN:
-    if cmd_opts.results_dir:  # don't run a test, just re-process results
-        rerun_results(project_name, cmd_opts, cmd_opts.results_dir)
-    elif cmd_opts.port:
-        import multimechanize.rpcserver
-        multimechanize.rpcserver.launch_rpc_server(cmd_opts.bind_addr, cmd_opts.port, project_name, run_test)
-    else:
-        run_test(project_name, cmd_opts)
-    return
-
-
+def setup_generators ( project_dir, generator_scripts ):
+    """
+    loads / validates all generators specified by the config file.
+    """
+    generators = {}
+    for generator in generator_scripts:
+        script = generator_scripts[generator]
+        generators[generator] = core.GeneratorWrapper(os.path.join(project_dir, "generators", script))
+        generators[generator].start()
+        atexit.register(generators[generator].terminate)
+    return generators
 
 def run_test(project_name, cmd_opts, remote_starter=None):
     if remote_starter is not None:
@@ -86,23 +99,28 @@ def run_test(project_name, cmd_opts, remote_starter=None):
     run_localtime = time.localtime()
     output_dir = '%s/%s/results/results_%s' % (cmd_opts.projects_dir, project_name, time.strftime('%Y.%m.%d_%H.%M.%S/', run_localtime))
 
+    generators = setup_generators ( cmd_opts.projects_dir, generator_scripts )
     # this queue is shared between all processes/threads
     queue = multiprocessing.Queue()
     rw = resultswriter.ResultsWriter(queue, output_dir, console_logging)
     rw.daemon = True
     rw.start()
-
     script_prefix = os.path.join(cmd_opts.projects_dir, project_name, "test_scripts")
     script_prefix = os.path.normpath(script_prefix)
 
     user_groups = []
     for i, ug_config in enumerate(user_group_configs):
         script_file = os.path.join(script_prefix, ug_config.script_file)
+        genclient = None
+        if ug_config.generator:
+            generator = generators[ug_config.generator]
+            genclient = generator.client
         ug = core.UserGroup(queue, i, ug_config.name, ug_config.num_threads,
-                            script_file, run_time, rampup)
+                            script_file, run_time, rampup, genclient)
         user_groups.append(ug)
     for user_group in user_groups:
         user_group.start()
+        atexit.register(user_group.terminate)
 
     start_time = time.time()
 
@@ -190,6 +208,7 @@ def rerun_results(project_name, cmd_opts, results_dir):
 
 def configure(project_name, cmd_opts, config_file=None):
     user_group_configs = []
+    generator_scripts = {}
     config = ConfigParser.ConfigParser()
     if config_file is None:
         config_file = '%s/%s/config.cfg' % (cmd_opts.projects_dir, project_name)
@@ -226,23 +245,36 @@ def configure(project_name, cmd_opts, config_file=None):
                 xml_report = config.getboolean(section, 'xml_report')
             except ConfigParser.NoOptionError:
                 xml_report = False
+        elif section == "generators":
+            generators = config.options("generators")
+            for gen in generators:
+                if generator_scripts.has_key(gen):
+                    raise AttributeError("multiple configurations found for generator with name : %s" % gen)
+                else:
+                    generator_scripts[gen] = config.get("generators", gen)
+
         else:
             threads = config.getint(section, 'threads')
             script = config.get(section, 'script')
             user_group_name = section
-            ug_config = UserGroupConfig(threads, user_group_name, script)
-            user_group_configs.append(ug_config)
+            generator = None
+            if config.has_option(section, 'generator'):
+                generator = config.get(section, 'generator')
+                if not generator in generator_scripts.keys():
+                    raise AttributeError("generator %s required by user_group %s was not defined in the generators section" % ( generator, user_group_name))
 
-    return (run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, pre_run_script, post_run_script, xml_report, user_group_configs)
+            ug_config = UserGroupConfig(threads, user_group_name, script, generator)
+            user_group_configs.append(ug_config)
+    return (run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, post_run_script, xml_report, user_group_configs, generator_scripts)
 
 
 
 class UserGroupConfig(object):
-    def __init__(self, num_threads, name, script_file):
+    def __init__(self, num_threads, name, script_file, generator):
         self.num_threads = num_threads
         self.name = name
         self.script_file = script_file
-
+        self.generator = generator
 
 
 if __name__ == '__main__':

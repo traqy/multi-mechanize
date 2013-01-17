@@ -54,6 +54,49 @@ class ScriptValidator(object):
         if problem:
             raise InvalidScriptError, problem
 
+class GeneratorValidator(object):
+    """
+    Utility class to ensure that a generator script conforms to convention
+    """
+    @staticmethod
+    def check_module_invalid(module):
+        """
+        Check if a script module is invalid and does not comply w/ conventions
+        :returns: Problem as string, if any is found.
+        :returns: None, if no problems are detected.
+        """
+        transaction_class = getattr(module, "Generator", None)
+        if not transaction_class:
+            return "{module}.Generator class missing".format(
+                        module=module.__name__)
+        get_method  = getattr(transaction_class, "get", None)
+        next_method  = getattr(transaction_class, "next", None)
+        if not (get_method or next_method):
+            return "neither {module}.Generator.get() or {module}.Generator.next() method exists".format(
+                        module=module.__name__)
+        if next_method and not inspect.isgeneratorfunction(next_method):
+            return "{module}.Generator.next() method is not a generator".format(
+                        module=module.__name__)
+
+        if get_method and not callable(get_method):
+                return "{module}.Generator.next() method is not callable".format(
+                module=module.__name__)
+
+        # -- EVERYTHING CHECKED: No problems detected.
+        return None
+
+    @classmethod
+    def ensure_module_valid(cls, module):
+        """
+        Ensures that a generator module is valid.
+        :raises: InvalidScriptError, if any convention is violated.
+        """
+        problem = cls.check_module_invalid(module)
+        if problem:
+            raise InvalidScriptError, problem
+
+
+
 class ScriptLoader(object):
     """Utility class to load scripts as python modules."""
 

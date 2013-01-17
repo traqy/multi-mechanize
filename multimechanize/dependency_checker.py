@@ -41,3 +41,8 @@ try:
 except ImportError:
     print 'can not import SQLAlchemy'
 
+try:
+    import bottle
+    print 'imported bottle successfully'
+except ImportError:
+    print 'can not import bottle'
