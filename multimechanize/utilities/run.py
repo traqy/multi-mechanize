@@ -107,7 +107,6 @@ def run_test(project_name, cmd_opts, remote_starter=None):
         genclient = None
         if ug_config.generator:
             generator = generators[ug_config.generator]
-            print generator
             genclient = generator.client
         ug = core.UserGroup(queue, i, ug_config.name, ug_config.num_threads,
                             script_file, run_time, rampup, genclient)
