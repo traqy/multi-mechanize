@@ -72,7 +72,7 @@ class GeneratorWrapper(threading.Thread):
                 self.lock.release()
 
         def get(self, key):
-            return self._gen.get(key)
+            return self._obj.get(key)
 
     def __init__(self, script_file):
         """
