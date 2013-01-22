@@ -111,12 +111,11 @@ def run_test(project_name, cmd_opts, remote_starter=None):
     user_groups = []
     for i, ug_config in enumerate(user_group_configs):
         script_file = os.path.join(script_prefix, ug_config.script_file)
-        genclient = None
+        gen_cli = None
         if ug_config.generator:
-            generator = generators[ug_config.generator]
-            genclient = generator.client
+            gen_cli = generators[ug_config.generator].get_client()
         ug = core.UserGroup(queue, i, ug_config.name, ug_config.num_threads,
-                            script_file, run_time, rampup, genclient)
+                            script_file, run_time, rampup, gen_cli)
         user_groups.append(ug)
     for user_group in user_groups:
         user_group.start()

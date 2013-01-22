@@ -9,10 +9,7 @@
 
 
 import multiprocessing
-import socket
 import os
-import urllib2
-import json
 import sys
 import threading
 import time
@@ -21,8 +18,7 @@ from multimechanize.script_loader import ScriptLoader
 from multimechanize.script_loader import GeneratorValidator
 import os.path
 
-import bottle
-
+import Pyro4
 
 def init(projects_dir, project_name):
     """
@@ -46,90 +42,60 @@ def load_script(script_file):
     return module
 
 
-class GeneratorWrapper(multiprocessing.Process, bottle.Bottle):
+class GeneratorWrapper(threading.Thread):
     """
-    wraps a generator script into a standalone web service that provides
+    wraps a generator script into a standalone Pyro service that provides
     data for user groups. The generator script provided must provide a class named
     Generator implementing either a python generator via a next() method or a key/value getter via a get(key)
     method.
     """
-    class DataGeneratorError(Exception):
-        pass
 
     class GeneratorClient(object):
-        """
-        client class to consume data from the webservice provided by :class:`GeneratorWrapper`
-        this client class will be assigned to each Transaction as a the :attr:`generator` member.
-        """
-        def __init__(self, url):
-            self.url = url
-        def __get_repsonse__(self, url):
-            try:
-                data = urllib2.urlopen(url).read()
-                try:
-                    json_data = json.loads(data)
-                    if json_data.has_key("error"):
-                        raise GeneratorWrapper.DataGeneratorError(json_data["error"])
-                    else:
-                        return json_data["data"]
-                except Exception,e:
-                    raise GeneratorWrapper.DataGeneratorError(e.message)
-            except GeneratorWrapper.DataGeneratorError,e:
-                raise e
-            except Exception,e:
-                raise GeneratorWrapper.DataGeneratorError("unknown error")
-
-
+        def __init__(self, uri):
+            self.uri = uri
+            self.proxy = Pyro4.Proxy(uri)
         def next(self):
-            return self.__get_repsonse__(self.url)
+            return self.proxy.next()
+        def get(self, key):
+            return self.proxy.get(key)
+
+    class GeneratorProxy:
+        def __init__(self, obj):
+            self._obj = obj
+            self.lock = threading.Lock()
+            self._gen = obj.next()
+        def next(self):
+            self.lock.acquire()
+            try:
+                return self._gen.next()
+            finally:
+                self.lock.release()
 
         def get(self, key):
-            return self.__get_repsonse__(self.url + "?key=%s" % key)
+            return self._obj.get(key)
 
     def __init__(self, script_file):
         """
         """
+        threading.Thread.__init__(self)
+        self.daemon = True
         self.module = load_script(script_file)
         GeneratorValidator.ensure_module_valid(self.module)
         self.generator = getattr(self.module, "Generator")()
-        multiprocessing.Process.__init__(self)
-        bottle.Bottle.__init__(self)
-        self.next = None
-        self.port = self.next_free_port()
-        self.client = GeneratorWrapper.GeneratorClient("http://localhost:%s/data" % self.port)
+        self.daemon_object = Pyro4.Daemon()
+        self.genproxy = GeneratorWrapper.GeneratorProxy(getattr(self.module, "Generator")())
+        uri = self.daemon_object.register(self.genproxy)
+        self.client = GeneratorWrapper.GeneratorClient(uri)
 
-    def __get_next__(self):
-        if not self.next:
-            self.next = self.generator.next()
-        return self.next.next()
-
-    def __get_key__(self, key):
-        return self.generator.get(key)
-
-    def __router__(self):
-        try:
-            if bottle.request.GET.get("key"):
-                return {"data":self.__get_key__(bottle.request.GET.get("key"))}
-            else:
-                return {"data":self.__get_next__()}
-        except StopIteration, e:
-            return {"error": "no more data in generator"}
-        except AttributeError, e:
-            return {"error": "%s:%s" % (str(self.module.__name__), e)}
-        except Exception, e:
-            return {"error": str(e)}
+    def get_client(self):
+        return self.client
 
     def run(self):
-        self.route("/data/")(self.__router__)
-        self.route("/data")(self.__router__)
-        bottle.Bottle.run(self, port = self.port, quiet=True)
+        self.daemon_object.requestLoop()
 
-    def next_free_port(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(("",0))
-        port = s.getsockname()[1]
-        s.close()
-        return port
+    def terminate(self):
+        self.daemon_object.shutdown()
+
 
 
 
