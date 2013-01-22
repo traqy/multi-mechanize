@@ -253,3 +253,87 @@ this example generates HTTP GETs, using httplib, with detailed timing::
         for timer in ('request sent', 'response received', 'content transferred'):
             print '%s: %.5f secs' % (timer, trans.custom_timers[timer])
 
+
+
+*********************************
+    Data Generator Script Writing
+*********************************
+
+Data generators can be used for communicating test data to virtual user scripts. This data can either be shared by all user groups or be made available to specific groups.
+The basic requirement of a data generator is a plain python script that implements atleast one of :meth:`Generator.get` or :meth:`Generator.next` (must return a python generator object). As expected the next method 
+provides the semantics of a the virtual user scripts consuming a queue of test data, and the get method provides a dictionary look up. 
+
+
+
+Examples
+~~~~~~~~
+
+A generator that provides line by line access (lines.py)::
+
+    class Generator:
+        def next(self):
+            fp = open("/var/log/system.log","r")
+            for line in fp:
+                yield line 
+
+The virtual user script that consumes this data (line_consumer.py)::
+
+
+    class Transaction:
+        def run(self):
+            assert len(self.generator.next()) > 0
+
+A generator that provides both a queue and key/value lookup (logs.py)::
+
+    import math 
+
+    class Generator:
+        def __init__(self):
+            self.data = dict( (k, math.log(k)) for k in range(1,100000))
+        def next(self):
+            for k,v in self.data.items():
+                yield k,v 
+        def get(self, key):
+            return self.data[key]
+
+
+The virtual user script that consumes this data ( log_consumer.py )::
+    
+    import time
+    class Transaction:
+        def __init__(self):
+            self.counter = 1
+        
+        def run(self):
+            time.sleep( self.generator.get(self.counter) )
+            self.counter += 1
+
+The generator is mapped to user groups via the config file. Each named generator in the ``[generators]`` section is initialized only once regardless of the number of user groups referencing them. 
+If the intention is to have per user group generators, then the same generator script can be referenced multiple times in the ``[generators]`` section with a unique name for each user group to reference. 
+The example below shows a combined use case::
+
+
+    [generators]
+    line_feed = lines.py 
+    line_feed_2 = lines.py 
+    log = logs.py 
+
+    [user-group-1]
+    script = line_consumer.py 
+    threads = 10
+    generator = line_feed 
+
+    [user-group-2]
+    script = line_consumer.py 
+    threads = 10 
+    generator = line_feed_2 
+
+    [user-group-3]
+    script = line_consumer.py 
+    threads = 10 
+    generator = line_feed 
+
+    [user-group-4]
+    script = log_consumer.py 
+    threads = 10 
+    generator = log 

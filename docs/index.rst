@@ -89,6 +89,7 @@ Each test project contains the following:
 
  * ``config.cfg``: configuration file. set your test options here.
  * ``test_scripts/``: directory for virtual user scripts. add your test scripts here.
+ * ``generators/``: directory for generator scripts.
  * ``results/``: directory for results storage. a timestamped directory is created for each test run, containing the results report.
 
 ``multimech-newproject`` will create a mock project, using a single script that generates random timer data.  Check it out for a basic example. 

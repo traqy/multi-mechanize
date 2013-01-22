@@ -42,9 +42,13 @@ Here is a sample ``config.cfg`` file showing all possible options, defining 2 gr
     results_database = sqlite:///my_project/results.db
     post_run_script = python my_project/foo.py
 
+    [generators]
+    simple_gen = simple_generator.py
+
     [user_group-1]
     threads = 30
     script = vu_script1.py
+    generator = simple_gen 
 
     [user_group-2]
     threads = 30
@@ -65,6 +69,12 @@ The following settings/options are available in the ``[global]`` config section:
 * ``results_database``: database connection string [optional]
 * ``post_run_script``: hook to call a script at test completion [optional]
 
+*****************
+Generator Options
+*****************
+The ``[generators]`` section only defines name to script mappings of generator scripts found in the ``generators/`` subdirectory. The given name can be referenced by each ``[user_group-*]`` section.
+
+
 ***************
     User Groups
 ***************
@@ -73,3 +83,4 @@ The following settings/options are available in each ``[user_group-*]`` config s
 
 * ``threads``: number of threads/virtual users
 * ``script``: virtual user test script to run
+* ``generator``: the name of the generator defined in the ``[generators]`` section. 
