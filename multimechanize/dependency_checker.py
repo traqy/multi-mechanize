@@ -42,7 +42,7 @@ except ImportError:
     print 'can not import SQLAlchemy'
 
 try:
-    import bottle
-    print 'imported bottle successfully'
+    import Pyro4
+    print 'imported Pyro4 successfully'
 except ImportError:
-    print 'can not import bottle'
+    print 'can not import Pyro4'
