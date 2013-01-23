@@ -70,14 +70,14 @@ def main():
     except Exception, e:
         parser.error(e)
 
-def setup_generators ( project_dir, generator_scripts ):
+def setup_generators ( projects_dir, project_name, generator_scripts ):
     """
     loads / validates all generators specified by the config file.
     """
     generators = {}
     for generator in generator_scripts:
         script = generator_scripts[generator]
-        generators[generator] = core.GeneratorWrapper(os.path.join(project_dir, "generators", script))
+        generators[generator] = core.GeneratorWrapper(os.path.join(projects_dir, project_name, "generators", script))
         generators[generator].start()
         atexit.register(generators[generator].terminate)
     return generators
@@ -91,8 +91,7 @@ def run_test(project_name, cmd_opts, remote_starter=None):
 
     run_localtime = time.localtime()
     output_dir = '%s/%s/results/results_%s' % (cmd_opts.projects_dir, project_name, time.strftime('%Y.%m.%d_%H.%M.%S/', run_localtime))
-
-    generators = setup_generators ( cmd_opts.projects_dir, generator_scripts )
+    generators = setup_generators ( cmd_opts.projects_dir, project_name, generator_scripts )
     # this queue is shared between all processes/threads
     queue = multiprocessing.Queue()
     rw = resultswriter.ResultsWriter(queue, output_dir, console_logging)
