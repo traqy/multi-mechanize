@@ -101,7 +101,7 @@ class GeneratorWrapper(threading.Thread):
 
 class UserGroup(multiprocessing.Process):
     def __init__(self, queue, process_num, user_group_name, num_threads,
-                 script_file, run_time, rampup, generator_client):
+                 script_file, run_time, rampup, generator_client, user_group_global_config):
         multiprocessing.Process.__init__(self)
         self.queue = queue
         self.process_num = process_num
@@ -112,6 +112,7 @@ class UserGroup(multiprocessing.Process):
         self.rampup = rampup
         self.start_time = time.time()
         self.generator_client = generator_client
+        self.user_group_global_config = user_group_global_config
 
     def run(self):
         # -- ENSURE: (Re-)Import script_module in forked Process
@@ -124,7 +125,7 @@ class UserGroup(multiprocessing.Process):
             agent_thread = Agent(self.queue, self.process_num, i,
                                  self.start_time, self.run_time,
                                  self.user_group_name,
-                                 script_module, self.script_file, self.generator_client)
+                                 script_module, self.script_file, self.generator_client, self.user_group_global_config)
             agent_thread.daemon = True
             threads.append(agent_thread)
             agent_thread.start()
@@ -135,7 +136,7 @@ class UserGroup(multiprocessing.Process):
 
 class Agent(threading.Thread):
     def __init__(self, queue, process_num, thread_num, start_time, run_time,
-                 user_group_name, script_module, script_file, generator_client):
+                 user_group_name, script_module, script_file, generator_client, user_group_global_config):
         threading.Thread.__init__(self)
         self.queue = queue
         self.process_num = process_num
@@ -146,6 +147,7 @@ class Agent(threading.Thread):
         self.script_module = script_module
         self.script_file   = script_file
         self.generator_client = generator_client
+        self.user_group_global_config = user_group_global_config
 
         # choose most accurate timer to use (time.clock has finer granularity
         # than time.time on windows, but shouldn't be used on other systems).
@@ -163,6 +165,7 @@ class Agent(threading.Thread):
         # scripts have access to these vars, which can be useful for loading unique data
         trans.thread_num = self.thread_num
         trans.process_num = self.process_num
+        trans.user_group_global_config = self.user_group_global_config
 
         while elapsed < self.run_time:
             error = ''

@@ -87,7 +87,7 @@ def run_test(project_name, cmd_opts, remote_starter=None):
         remote_starter.test_running = True
         remote_starter.output_dir = None
 
-    run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, pre_run_script, post_run_script, xml_report, user_group_configs = configure(project_name, cmd_opts)
+    run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, pre_run_script, post_run_script, xml_report, user_group_configs, generator_scripts = configure(project_name, cmd_opts)
 
     # Run setup script
     if pre_run_script is not None:
@@ -98,6 +98,7 @@ def run_test(project_name, cmd_opts, remote_starter=None):
 
     run_localtime = time.localtime()
     output_dir = '%s/%s/results/results_%s' % (cmd_opts.projects_dir, project_name, time.strftime('%Y.%m.%d_%H.%M.%S/', run_localtime))
+
     generators = setup_generators ( cmd_opts.projects_dir, project_name, generator_scripts )
     # this queue is shared between all processes/threads
     queue = multiprocessing.Queue()
@@ -114,7 +115,7 @@ def run_test(project_name, cmd_opts, remote_starter=None):
         if ug_config.generator:
             gen_cli = generators[ug_config.generator].get_client()
         ug = core.UserGroup(queue, i, ug_config.name, ug_config.num_threads,
-                            script_file, run_time, rampup, gen_cli)
+                            script_file, run_time, rampup, gen_cli, ug_config.user_group_global_config)
         user_groups.append(ug)
     for user_group in user_groups:
         user_group.start()
@@ -207,11 +208,12 @@ def rerun_results(project_name, cmd_opts, results_dir):
 def configure(project_name, cmd_opts, config_file=None):
     user_group_configs = []
     generator_scripts = {}
+    user_group_global_config = {}
     config = ConfigParser.ConfigParser()
     if config_file is None:
         config_file = '%s/%s/config.cfg' % (cmd_opts.projects_dir, project_name)
     config.read(config_file)
-    for section in config.sections():
+    for section in sorted(config.sections()):
         if section == 'global':
             run_time = config.getint(section, 'run_time')
             rampup = config.getint(section, 'rampup')
@@ -243,6 +245,10 @@ def configure(project_name, cmd_opts, config_file=None):
                 xml_report = config.getboolean(section, 'xml_report')
             except ConfigParser.NoOptionError:
                 xml_report = False
+        elif section == "user_group_global":
+            for option in config.options('user_group_global'):
+                option_val =  config.get(section, option)
+                user_group_global_config.setdefault(option, option_val)
         elif section == "generators":
             generators = config.options("generators")
             for gen in generators:
@@ -261,18 +267,19 @@ def configure(project_name, cmd_opts, config_file=None):
                 if not generator in generator_scripts.keys():
                     raise AttributeError("generator %s required by user_group %s was not defined in the generators section" % ( generator, user_group_name))
 
-            ug_config = UserGroupConfig(threads, user_group_name, script, generator)
+            ug_config = UserGroupConfig(threads, user_group_name, script, generator, user_group_global_config)
             user_group_configs.append(ug_config)
-    return (run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, post_run_script, xml_report, user_group_configs, generator_scripts)
+    return (run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, pre_run_script, post_run_script, xml_report, user_group_configs, generator_scripts)
 
 
 
 class UserGroupConfig(object):
-    def __init__(self, num_threads, name, script_file, generator):
+    def __init__(self, num_threads, name, script_file, generator, user_group_global_config):
         self.num_threads = num_threads
         self.name = name
         self.script_file = script_file
         self.generator = generator
+        self.user_group_global_config = user_group_global_config
 
 
 if __name__ == '__main__':
