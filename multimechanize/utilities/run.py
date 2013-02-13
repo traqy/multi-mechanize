@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 import atexit
+import traceback
 
 try:
     # installed
@@ -75,12 +76,17 @@ def setup_generators ( projects_dir, project_name, generator_scripts ):
     loads / validates all generators specified by the config file.
     """
     generators = {}
-    for generator in generator_scripts:
-        script = generator_scripts[generator]
-        generators[generator] = core.GeneratorWrapper(os.path.join(projects_dir, project_name, "generators", script))
-        generators[generator].start()
-        atexit.register(generators[generator].terminate)
-    return generators
+    try:
+        for generator in generator_scripts:
+            script = generator_scripts[generator]
+            generators[generator] = core.GeneratorWrapper(os.path.join(projects_dir, project_name, "generators", script))
+            generators[generator].start()
+            atexit.register(generators[generator].terminate)
+        return generators
+    except:
+        traceback.print_exc()
+        pass
+        return {}
 
 def run_test(project_name, cmd_opts, remote_starter=None):
     if remote_starter is not None:
@@ -195,7 +201,8 @@ def run_test(project_name, cmd_opts, remote_starter=None):
 def rerun_results(project_name, cmd_opts, results_dir):
     output_dir = '%s/%s/results/%s/' % (cmd_opts.projects_dir, project_name, results_dir)
     saved_config = '%s/config.cfg' % output_dir
-    run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, pre_run_script, post_run_script, xml_report, user_group_configs = configure(project_name, cmd_opts, config_file=saved_config)
+    #run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, pre_run_script, post_run_script, xml_report, user_group_configs = configure(project_name, cmd_opts, config_file=saved_config)
+    run_time, rampup, results_ts_interval, console_logging, progress_bar, results_database, pre_run_script, post_run_script, xml_report, user_group_configs, generator_scripts = configure(project_name, cmd_opts, config_file=saved_config)
     print '\n\nanalyzing results...\n'
     results.output_results(output_dir, 'results.csv', run_time, rampup, results_ts_interval, user_group_configs, xml_report)
     print 'created: %sresults.html\n' % output_dir
