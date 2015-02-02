@@ -305,8 +305,8 @@ class Results(object):
             for timer, val in zip(timers, vals):
                 custom_timers[timer] = val
 
-            if re.search( DEBUG_TIMERNAME, custom_timers.keys().pop() ):
-                foo="debug"
+            #if re.search( DEBUG_TIMERNAME, custom_timers.keys().pop() ):
+            #    foo="debug"
             r = ResponseStats(request_num, elapsed_time, epoch_secs, user_group_name, trans_time, error, custom_timers)
 
             if elapsed_time < self.run_time:  # drop all times that appear after the last request was sent (incomplete interval)
